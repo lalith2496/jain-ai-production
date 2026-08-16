@@ -1,0 +1,16 @@
+{
+  "name": "jain-ai-admin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}

@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+**/.venv/
+**/node_modules/
+**/dist/
+**/__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/

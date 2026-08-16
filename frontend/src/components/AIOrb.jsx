@@ -1,0 +1,1 @@
+import React from"react";import{Sparkles}from"lucide-react";export default function AIOrb({compact=false}){return <div className={compact?"ai-orb compact":"ai-orb"}><div className="orb-ring ring-one"/><div className="orb-ring ring-two"/><div className="orb-core"><Sparkles size={compact?20:30}/></div></div>}

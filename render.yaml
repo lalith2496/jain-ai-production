@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: jain-ai-api
+    runtime: python
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python scripts/run_migrations.py
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: WEB_SEARCH_MODE
+        value: always
+      - key: OLLAMA_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        sync: false
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_COOKIE_SECURE
+        value: "true"
+      - key: ADMIN_COOKIE_SAMESITE
+        value: none
+      - key: CRAWLER_ALLOWED_PORTS
+        value: 80,443
+      - key: CRAWLER_MAX_REDIRECTS
+        value: "5"
+      - key: CRAWLER_MAX_BYTES
+        value: "2000000"
