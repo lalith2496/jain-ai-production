@@ -240,7 +240,7 @@ def query_analyze(q: str, _: bool = Depends(require_admin)):
     }
 
 @app.get("/api/search/all")
-def search_all(q: str, limit: int = 10, _: bool = Depends(require_admin)):
+def search_all(q: str, limit: int = 10):
     try:
         analysis, evidence = retrieve_evidence(q, max_evidence=limit)
         return {
