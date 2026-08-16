@@ -56,6 +56,9 @@ def retrieve_evidence(query: str, max_evidence: int = 10):
     analysis = analyze_query(query)
     combined = []
 
+    # ---------------------------------------------------------
+    # 1. Search approved/local Jain knowledge first
+    # ---------------------------------------------------------
     try:
         local_results = _local_evidence(query, limit=6)
     except Exception as exc:
@@ -64,27 +67,145 @@ def retrieve_evidence(query: str, max_evidence: int = 10):
 
     combined.extend(local_results)
 
-    if _should_use_web(analysis, local_results):
-        for web_query in analysis.search_queries[:3]:
-            try:
-                combined.extend(tavily_search(web_query, max_results=6))
-            except Exception as exc:
-                print("TAVILY SEARCH ERROR:", web_query, repr(exc))
+    print(
+        f"RETRIEVAL: query={query!r}, "
+        f"intent={analysis.intent}, "
+        f"local_results={len(local_results)}, "
+        f"needs_web={analysis.needs_web}, "
+        f"needs_youtube={analysis.needs_youtube}"
+    )
 
+    # ---------------------------------------------------------
+    # 2. Decide whether live web discovery is needed
+    #
+    # IMPORTANT:
+    # Even when query analysis says web is not required,
+    # automatically fall back to web if approved/local
+    # knowledge did not return useful evidence.
+    # ---------------------------------------------------------
+    use_web = _should_use_web(
+        analysis,
+        local_results,
+    )
+
+    # Hard fallback:
+    # zero approved/local evidence MUST trigger web discovery.
+    if not local_results:
+        use_web = True
+
+    # ---------------------------------------------------------
+    # 3. Tavily web discovery
+    # ---------------------------------------------------------
+    if use_web:
+        print(
+            f"WEB FALLBACK ENABLED for query: {query!r}"
+        )
+
+        search_queries = list(
+            getattr(analysis, "search_queries", []) or []
+        )
+
+        # Query analyzer may occasionally return no generated
+        # search queries. Always keep the original user query
+        # as a fallback.
+        if not search_queries:
+            search_queries = [query]
+
+        # Make sure the original question is searchable too.
+        if query not in search_queries:
+            search_queries.insert(0, query)
+
+        for web_query in search_queries[:3]:
+            try:
+                web_results = tavily_search(
+                    web_query,
+                    max_results=6,
+                )
+
+                print(
+                    f"TAVILY: {web_query!r} -> "
+                    f"{len(web_results)} results"
+                )
+
+                combined.extend(web_results)
+
+            except Exception as exc:
+                print(
+                    "TAVILY SEARCH ERROR:",
+                    web_query,
+                    repr(exc),
+                )
+
+    # ---------------------------------------------------------
+    # 4. YouTube discovery
+    #
+    # Only use YouTube when query analysis says the request
+    # relates to songs, stavans, videos, pravachans, etc.
+    # ---------------------------------------------------------
     if analysis.needs_youtube:
-        for yt_query in analysis.search_queries[:2]:
+        youtube_queries = list(
+            getattr(analysis, "search_queries", []) or []
+        )
+
+        if not youtube_queries:
+            youtube_queries = [query]
+
+        if query not in youtube_queries:
+            youtube_queries.insert(0, query)
+
+        for yt_query in youtube_queries[:2]:
             try:
-                combined.extend(youtube_search(yt_query, max_results=5))
+                youtube_results = youtube_search(
+                    yt_query,
+                    max_results=5,
+                )
+
+                print(
+                    f"YOUTUBE: {yt_query!r} -> "
+                    f"{len(youtube_results)} results"
+                )
+
+                combined.extend(youtube_results)
+
             except Exception as exc:
-                print("YOUTUBE SEARCH ERROR:", yt_query, repr(exc))
+                print(
+                    "YOUTUBE SEARCH ERROR:",
+                    yt_query,
+                    repr(exc),
+                )
 
-    ranked = rank_evidence(analysis, combined, limit=max_evidence)
+    # ---------------------------------------------------------
+    # 5. Rank all evidence
+    #
+    # Approved/local + live web + YouTube are ranked together.
+    # ---------------------------------------------------------
+    ranked = rank_evidence(
+        analysis,
+        combined,
+        limit=max_evidence,
+    )
 
-    # Persist useful live discoveries into the admin approval queue.
-    # This never auto-approves them.
+    print(
+        f"RETRIEVAL COMPLETE: "
+        f"combined={len(combined)}, "
+        f"ranked={len(ranked)}"
+    )
+
+    # ---------------------------------------------------------
+    # 6. Save useful discoveries to Admin Approval queue
+    #
+    # IMPORTANT:
+    # This does NOT automatically approve web sources.
+    # ---------------------------------------------------------
     try:
-        save_discovered_evidence(query, ranked)
+        save_discovered_evidence(
+            query,
+            ranked,
+        )
     except Exception as exc:
-        print("DISCOVERY QUEUE ERROR:", repr(exc))
+        print(
+            "DISCOVERY QUEUE ERROR:",
+            repr(exc),
+        )
 
     return analysis, ranked
