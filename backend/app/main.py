@@ -641,19 +641,21 @@ def verify_whatsapp_webhook(
 @app.post("/api/whatsapp/webhook")
 async def receive_whatsapp_message(
     request: Request,
+    background_tasks: BackgroundTasks,
 ):
     try:
         payload = await request.json()
 
-        print(
-            "WHATSAPP WEBHOOK RECEIVED:",
-            payload,
+        entries = payload.get(
+            "entry",
+            [],
         )
 
-        entries = payload.get("entry", [])
-
         for entry in entries:
-            changes = entry.get("changes", [])
+            changes = entry.get(
+                "changes",
+                [],
+            )
 
             for change in changes:
                 value = change.get(
@@ -667,84 +669,41 @@ async def receive_whatsapp_message(
                 )
 
                 for message in messages:
-
-                    # For now support text messages.
-                    if message.get("type") != "text":
+                    if (
+                        message.get("type")
+                        != "text"
+                    ):
                         continue
 
-                    sender = message.get("from")
+                    sender = message.get(
+                        "from"
+                    )
 
                     text = (
                         message
-                        .get("text", {})
-                        .get("body", "")
+                        .get(
+                            "text",
+                            {},
+                        )
+                        .get(
+                            "body",
+                            "",
+                        )
                         .strip()
                     )
 
                     if not sender or not text:
                         continue
 
-                    print(
-                        "WHATSAPP QUESTION:",
+                    background_tasks.add_task(
+                        process_whatsapp_question,
                         sender,
                         text,
                     )
 
-                    # -------------------------------------------------
-                    # Search the SAME Jain AI knowledge engine
-                    # -------------------------------------------------
-
-                    analysis, evidence = retrieve_evidence(
-                        text,
-                        max_evidence=8,
-                    )
-
-                    context_parts = []
-
-                    for index, item in enumerate(
-                        evidence,
-                        start=1,
-                    ):
-                        context_parts.append(
-                            f"""
-SOURCE {index}
-
-Title:
-{item.title}
-
-URL:
-{item.url}
-
-Content:
-{item.content}
-"""
-                        )
-
-                    context = "\n\n".join(
-                        context_parts
-                    )
-
-                    if not context:
-                        answer = (
-                            "I couldn't find enough reliable "
-                            "Jain information for that question "
-                            "yet. Please try another wording."
-                        )
-
-                    else:
-                        answer = generate_answer(
-                            user_message=text,
-                            context=context,
-                        )
-
-                    send_whatsapp_message(
-                        sender,
-                        answer,
-                    )
-
-        # Meta expects a quick successful response.
+        # Respond to Meta immediately.
         return {
-            "status": "ok"
+            "status": "received"
         }
 
     except Exception as exc:
@@ -753,8 +712,6 @@ Content:
             repr(exc),
         )
 
-        # Return 200 so WhatsApp doesn't repeatedly
-        # retry a malformed/unsupported message.
         return {
-            "status": "received"
-        }    
+            "status": "ignored"
+        }  
